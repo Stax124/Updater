@@ -2,3 +2,6 @@
 /hashtable.hash
 /test
 /__pycache__
+/dist
+/build
+updater.spec

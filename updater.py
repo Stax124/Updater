@@ -3,13 +3,7 @@ import hashlib
 import os
 import json
 import pathlib
-from clint.textui import progress
-
-
-class Mode():
-    URL = 1
-    FILE = 2
-
+from downloader import download_file
 
 class Updater():
     """
@@ -35,26 +29,20 @@ class Updater():
         """        
 
         data = open(filename, "rb").read()
-        return hashlib.md5(data).hexdigest()
+        return hashlib.sha256(data).hexdigest()
 
-    def load_hashtable(self, mode: Mode, target: str) -> dict:
-        """Load JSON hashtable as dictionary
+    def load_hashtable(self, url: str) -> dict:
+        """Load URL as dictionary
 
         Args:
-            mode (Mode): Type of hashtable (File, url)
-            target (str): Path to hashtable
+            url (str): Path to hashtable
 
         Returns:
             dict: loaded hashtable
         """        
 
-        if mode == Mode.URL:
-            table = json.loads(requests.get(
-                target, allow_redirects=True).content)
-
-        else:
-            with open(target, "r", encoding="utf-8") as f:
-                table = json.load(f)
+        table = json.loads(requests.get(
+            url, allow_redirects=True).content)
 
         return dict(table)
 
@@ -112,22 +100,21 @@ class Updater():
 
         return dict(generated)
 
-    def compare(self, mode: Mode, target: str, rebase: bool = False) -> list:
+    def compare(self, url: str) -> list:
         """Generate hashtable and compare it to local file or mirror\n
 
         TODO: Implement rebase
 
         Args:
             mode (Mode): Type of hashtable (file, URL)
-            target (str): Path or URL to hashtable
-            rebase (bool, optional): Reset directory to state described by hashtable. Defaults to False.
+            url (str): Path or URL to hashtable
 
         Returns:
             list: Absent or modified files
         """        
 
         self.generated_hashtable = self.generate_hashtable(exclude=list())
-        self.loaded_hashtable = self.load_hashtable(mode, target)
+        self.loaded_hashtable = self.load_hashtable(url)
 
         diff = {}
         for k in self.loaded_hashtable:
@@ -140,25 +127,8 @@ class Updater():
 
         return list(diff.keys())
 
-    def download(self, mirror: str, mode: Mode, target: str, rebase: bool = False):
-        """Download files based on difference in hashtables or rebase(validate) all files
-
-        Args:
-            mirror (str): root URL for retrieving files
-            mode (Mode): Type of hashtable (file, URL)
-            target (str): Path or URL to hashtable
-            rebase (bool, optional): Reset directory to state described by hashtable. Defaults to False.
-        """        
-        
-        different = self.compare(mode, target, rebase)
-
-        mirror = mirror if mirror[-1] == "/" else mirror + "/"
-
-        for item in different:
-            with open(item, "wb") as f:
-                response = requests.get(mirror+item, stream=True)
-                total_length = int(response.headers.get('content-length'))
-                for chunk in progress.bar(response.iter_content(chunk_size=1024), expected_size=(total_length/1024) + 1, label=item): 
-                    if chunk:
-                        f.write(chunk)
-                        f.flush()
+    def download(self, mirror: str, hashtable: str):
+        if not mirror[-1] == "/": mirror+="/"
+            
+        for item in self.compare(hashtable):
+            download_file(mirror+item, self.path)
