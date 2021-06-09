@@ -36,7 +36,7 @@ def downloader(url: str, download_folder: str, resume_byte_pos: int = None):
                 pbar.update(len(chunk))
 
 
-def download_file(url: str, download_folder: str) -> None:
+def download_file(url: str, download_folder: str, targeted_hash: str) -> None:
     """Execute the correct download operation.
     Depending on the size of the file online and offline, resume the
     download if the file offline is smaller than online.
@@ -52,23 +52,24 @@ def download_file(url: str, download_folder: str) -> None:
     if file.exists():
         file_size_offline = file.stat().st_size
 
-        if file_size_online != file_size_offline:
+        if file_size_online > file_size_offline:
             print(f'{file} is incomplete. Resume download.')
             downloader(url, download_folder, file_size_offline)
         else:
-            print(f'File {file} is complete. Skip download.')
+            downloader(url, download_folder)
             pass
     else:
         downloader(url, download_folder)
+    
+    if not validate_file(file, targeted_hash):
+        raise AssertionError("File is corrupted, restart updater")
 
 
-def validate_file(url: str, download_folder: str, hash: str) -> None:
+def validate_file(file: str, hash: str) -> None:
     """Validate a given file with its hash.
     The downloaded file is hashed and compared to a pre-registered
     has value to validate the download procedure.
     """
-    DOWNLOAD_FOLDER = Path(download_folder)
-    file = DOWNLOAD_FOLDER / url.split('/')[-1]
 
     sha = hashlib.sha256()
     with open(file, 'rb') as f:
@@ -77,24 +78,6 @@ def validate_file(url: str, download_folder: str, hash: str) -> None:
             if not chunk:
                 break
             sha.update(chunk)
-    try:
-        assert sha.hexdigest() == hash
-    except AssertionError:
-        file = url.split("/")[-1]
-        print(f'File {file} is corrupt. '
-                   'Delete it manually and restart the program.')
-    else:
-        print(f'File {file} is validated.')
-
-
-# @cli.command()
-# def validate():
-#     """Validate downloads with hashes in ``HASHES``."""
-#     print('### Start validating required files.\n')
-#     for position in range(len(URLS)):
-#         validate_file(position)
-#     print('\n### End\n')
-
-
-# if __name__ == '__main__':
-#     cli()
+    
+    if not sha.hexdigest() == hash: return False
+    else: return True

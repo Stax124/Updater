@@ -17,5 +17,4 @@ main_updater = updater.Updater(args.directory)
 if args.generate:
     main_updater.dump_hashtable(args.hashtable, args.exclude)
 else:
-    print(main_updater.compare(args.hashtable))
     main_updater.download(args.mirror, args.hashtable)

@@ -28,8 +28,15 @@ class Updater():
             str: MD5 hash
         """        
 
-        data = open(filename, "rb").read()
-        return hashlib.sha256(data).hexdigest()
+        sha = hashlib.sha256()
+        with open(filename, 'rb') as f:
+            while True:
+                chunk = f.read(1000 * 1000)  # 1MB so that memory is not exhausted
+                if not chunk:
+                    break
+                sha.update(chunk)
+                
+        return sha.hexdigest()
 
     def load_hashtable(self, url: str) -> dict:
         """Load URL as dictionary
@@ -123,12 +130,12 @@ class Updater():
             if not k in self.generated_hashtable:
                 diff[pathlib.Path(k).as_posix()] = self.loaded_hashtable[k]
 
-        
-
-        return list(diff.keys())
+        return diff
 
     def download(self, mirror: str, hashtable: str):
         if not mirror[-1] == "/": mirror+="/"
+        
+        compared = self.compare(hashtable)
             
-        for item in self.compare(hashtable):
-            download_file(mirror+item, self.path)
+        for item in compared.keys():
+            download_file(mirror+item, self.path, compared[item]["hash"])
