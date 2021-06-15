@@ -30,7 +30,7 @@ def downloader(url: str, download_folder: str, resume_byte_pos: int = None):
         with tqdm(total=file_size, unit='B',
                   unit_scale=True, unit_divisor=1024,
                   desc=file.name, initial=initial_pos,
-                  ascii=True, miniters=1) as pbar:
+                  ascii=False, leave=False) as pbar:
             for chunk in r.iter_content(32 * block_size):
                 f.write(chunk)
                 pbar.update(len(chunk))
@@ -53,7 +53,7 @@ def download_file(url: str, download_folder: str, targeted_hash: str) -> None:
         file_size_offline = file.stat().st_size
 
         if file_size_online > file_size_offline:
-            print(f'{file} is incomplete. Resume download.')
+            print(f'{file} is incomplete. Resuming download.')
             downloader(url, download_folder, file_size_offline)
         else:
             downloader(url, download_folder)
@@ -73,11 +73,15 @@ def validate_file(file: str, hash: str) -> None:
 
     sha = hashlib.sha256()
     with open(file, 'rb') as f:
-        while True:
-            chunk = f.read(1000 * 1000)  # 1MB so that memory is not exhausted
-            if not chunk:
-                break
-            sha.update(chunk)
+        with tqdm(total=file.stat().st_size, unit='B',
+                  unit_scale=True, unit_divisor=1024,
+                  desc=file.name, ascii=False, leave=False) as pbar:
+            while True:
+                chunk = f.read(1000 * 1000)  # 1MB so that memory is not exhausted
+                if not chunk:
+                    break
+                sha.update(chunk)
+                pbar.update(1000)
     
     if not sha.hexdigest() == hash: return False
     else: return True

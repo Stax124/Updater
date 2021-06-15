@@ -3,6 +3,7 @@ import hashlib
 import os
 import json
 import pathlib
+from tqdm import tqdm
 from downloader import download_file
 
 class Updater():
@@ -17,6 +18,15 @@ class Updater():
         self.path = path # Starting point
         self.loaded_hashtable = None
         self.generated_hashtable = None
+        
+        os.chdir(self.path)
+
+    def human_readable(self, num, suffix='B'):
+        for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+            if abs(num) < 1024.0:
+                return "%3.1f%s%s" % (num, unit, suffix)
+            num /= 1024.0
+        return "%.1f%s%s" % (num, 'Yi', suffix)
 
     def create_hash(self, filename: os.PathLike) -> str:
         """Create MD5 hash of file
@@ -26,15 +36,20 @@ class Updater():
 
         Returns:
             str: MD5 hash
-        """        
+        """
 
         sha = hashlib.sha256()
+        
         with open(filename, 'rb') as f:
-            while True:
-                chunk = f.read(1000 * 1000)  # 1MB so that memory is not exhausted
-                if not chunk:
-                    break
-                sha.update(chunk)
+            with tqdm(total=os.stat(filename).st_size, unit='B',
+                  unit_scale=True, unit_divisor=1024,
+                  desc="Hashing "+filename, ascii=False, leave=False) as pbar:
+                while True:
+                    chunk = f.read(1000 * 1000)  # 1MB so that memory is not exhausted
+                    if not chunk:
+                        break
+                    sha.update(chunk)
+                    pbar.update(1000*1000)
                 
         return sha.hexdigest()
 
@@ -110,32 +125,52 @@ class Updater():
     def compare(self, url: str) -> list:
         """Generate hashtable and compare it to local file or mirror\n
 
-        TODO: Implement rebase
-
         Args:
             mode (Mode): Type of hashtable (file, URL)
             url (str): Path or URL to hashtable
 
         Returns:
-            list: Absent or modified files
+            dict: Absent or modified files
+            int: Size of files that needs to be downloaded
         """        
 
         self.generated_hashtable = self.generate_hashtable(exclude=list())
         self.loaded_hashtable = self.load_hashtable(url)
 
         diff = {}
+        size = 0
         for k in self.loaded_hashtable:
             if k in self.generated_hashtable and self.loaded_hashtable[k] != self.generated_hashtable[k]:
                 diff[pathlib.Path(k).as_posix()] = self.loaded_hashtable[k]
+                size += self.loaded_hashtable[k]["size"]
             if not k in self.generated_hashtable:
                 diff[pathlib.Path(k).as_posix()] = self.loaded_hashtable[k]
+                size += self.loaded_hashtable[k]["size"]
 
-        return diff
+        return (diff, size)
 
-    def download(self, mirror: str, hashtable: str):
+    def download(self, mirror: str, hashtable: str, prompt_user: bool = True):
+        def execute():
+            for item in compared.keys():
+                download_file(mirror+item, self.path, compared[item]["hash"])
+        
         if not mirror[-1] == "/": mirror+="/"
         
-        compared = self.compare(hashtable)
-            
-        for item in compared.keys():
-            download_file(mirror+item, self.path, compared[item]["hash"])
+        compared, size = self.compare(hashtable)
+        
+        if size == 0:
+            print("All files validated, nothing to download")
+            return
+        
+        if prompt_user:
+            try:
+                response = input(f"Total size: {self.human_readable(size)}\nDo you want to start download ? (y/n): ")
+                
+                if response == "" or response.lower() == "y":
+                    execute()
+                else:
+                    raise KeyboardInterrupt
+            except KeyboardInterrupt:
+                print("\nCanceled by user, quitting")
+        else:
+            execute()
