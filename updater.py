@@ -109,12 +109,23 @@ class Updater():
 
         generated = {}
 
+        excluded_directories = []
+        excluded_files = []
+        for item in exclude:
+            if os.path.isdir(item):
+                excluded_directories.append(item)
+            elif os.path.isfile(item):
+                excluded_files.append(item)
+
         for dirpath, _, files in os.walk(self.path):
+            if os.path.normpath(dirpath) in excluded_directories:
+                continue
+            
             if files != []:
                 
                 for file in files:
                     path = os.path.normpath(os.path.join(dirpath, file))
-                    if not path in exclude:
+                    if not path in excluded_files:
                         generated[path] = {
                             "hash": self.create_hash(path),
                             "size": os.path.getsize(path)
