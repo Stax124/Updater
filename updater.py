@@ -5,6 +5,7 @@ import json
 import pathlib
 from tqdm import tqdm
 from downloader import download_file
+from pathlib import Path
 
 class Updater():
     """
@@ -127,7 +128,7 @@ class Updater():
             if files != []:
                 
                 for file in files:
-                    path = os.path.normpath(os.path.join(dirpath, file))
+                    path = Path(os.path.normpath(os.path.join(dirpath, file))).as_posix()
                     if not path in excluded_files:
                         generated[path] = {
                             "hash": self.create_hash(path),
