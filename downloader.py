@@ -4,9 +4,11 @@ import requests
 from pathlib import Path
 from tqdm import tqdm
 
+DOWNLOAD_FOLDER = None
 
 def downloader(url: str, download_folder: str, resume_byte_pos: int = None):
     """Download url in ``URLS[position]`` to disk with possible resumption."""
+    
     # Get size of file
     DOWNLOAD_FOLDER = Path(download_folder)
     r = requests.head(url)
@@ -30,17 +32,17 @@ def downloader(url: str, download_folder: str, resume_byte_pos: int = None):
         with tqdm(total=file_size, unit='B',
                   unit_scale=True, unit_divisor=1024,
                   desc=file.name, initial=initial_pos,
-                  ascii=False, leave=False) as pbar:
+                  ascii=False, leave=False) as progressbar:
             for chunk in r.iter_content(32 * block_size):
                 f.write(chunk)
-                pbar.update(len(chunk))
-
+                progressbar.update(len(chunk))
 
 def download_file(url: str, download_folder: str, targeted_hash: str) -> None:
     """Execute the correct download operation.
     Depending on the size of the file online and offline, resume the
     download if the file offline is smaller than online.
     """
+    
     # Establish connection to header of file
     DOWNLOAD_FOLDER = Path(download_folder)
     r = requests.head(url)
@@ -64,7 +66,6 @@ def download_file(url: str, download_folder: str, targeted_hash: str) -> None:
     if not validate_file(file, targeted_hash):
         raise AssertionError("File is corrupted, restart updater")
 
-
 def validate_file(file: str, hash: str) -> None:
     """Validate a given file with its hash.
     The downloaded file is hashed and compared to a pre-registered
@@ -72,16 +73,17 @@ def validate_file(file: str, hash: str) -> None:
     """
 
     sha = hashlib.sha256()
+    
     with open(file, 'rb') as f:
         with tqdm(total=file.stat().st_size, unit='B',
                   unit_scale=True, unit_divisor=1024,
-                  desc=file.name, ascii=False, leave=False) as pbar:
+                  desc=file.name, ascii=False, leave=False) as progressbar:
             while True:
                 chunk = f.read(1000 * 1000)  # 1MB so that memory is not exhausted
                 if not chunk:
                     break
                 sha.update(chunk)
-                pbar.update(1000)
+                progressbar.update(1000)
     
     if not sha.hexdigest() == hash: return False
     else: return True

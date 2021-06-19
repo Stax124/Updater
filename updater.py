@@ -14,12 +14,10 @@ class Updater():
         path (os.PathLike): Directory, from which is the hashtable generated
     """
 
-    def __init__(self, path: os.PathLike):
+    def __init__(self, path: os.PathLike = "."):
         self.path = path # Starting point
         self.loaded_hashtable = None
         self.generated_hashtable = None
-        
-        os.chdir(self.path)
 
     def human_readable(self, num, suffix='B'):
         for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
@@ -43,13 +41,13 @@ class Updater():
         with open(filename, 'rb') as f:
             with tqdm(total=os.stat(filename).st_size, unit='B',
                   unit_scale=True, unit_divisor=1024,
-                  desc="Hashing "+filename, ascii=False, leave=False) as pbar:
+                  desc="Hashing "+filename, ascii=False, leave=False) as progressbar:
                 while True:
                     chunk = f.read(1000 * 1000)  # 1MB so that memory is not exhausted
                     if not chunk:
                         break
                     sha.update(chunk)
-                    pbar.update(1000*1000)
+                    progressbar.update(1000*1000)
                 
         return sha.hexdigest()
 
@@ -68,7 +66,18 @@ class Updater():
 
         return dict(table)
 
-    def dump_hashtable(self, hashtable: os.PathLike = "./hashtable.tmp", exclude: list = None) -> os.PathLike:
+    def exclude(self, exclude: list) -> tuple:
+        excluded_directories, excluded_files = [] ,[]
+        
+        for item in exclude:
+            if os.path.isdir(item):
+                excluded_directories.append(item)
+            elif os.path.isfile(item):
+                excluded_files.append(item)
+                
+        return excluded_directories, excluded_files
+
+    def dump_hashtable(self, hashtable: os.PathLike, exclude: list = None) -> os.PathLike:
         """Create new hashtable and dump it into file
 
         Args:
@@ -109,13 +118,7 @@ class Updater():
 
         generated = {}
 
-        excluded_directories = []
-        excluded_files = []
-        for item in exclude:
-            if os.path.isdir(item):
-                excluded_directories.append(item)
-            elif os.path.isfile(item):
-                excluded_files.append(item)
+        excluded_directories, excluded_files = self.exclude(exclude)
 
         for dirpath, _, files in os.walk(self.path):
             if os.path.normpath(dirpath) in excluded_directories:
@@ -182,6 +185,6 @@ class Updater():
                 else:
                     raise KeyboardInterrupt
             except KeyboardInterrupt:
-                print("\nCanceled by user, quitting")
+                print("\nCancelled by user, quitting")
         else:
             execute()
