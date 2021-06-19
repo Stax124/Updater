@@ -4,13 +4,10 @@ import requests
 from pathlib import Path
 from tqdm import tqdm
 
-DOWNLOAD_FOLDER = None
-
-def downloader(url: str, download_folder: str, resume_byte_pos: int = None):
+def downloader(url: str, file: Path, resume_byte_pos: int = None):
     """Download url in ``URLS[position]`` to disk with possible resumption."""
     
     # Get size of file
-    DOWNLOAD_FOLDER = Path(download_folder)
     r = requests.head(url)
     file_size = int(r.headers.get('content-length', 0))
 
@@ -26,7 +23,8 @@ def downloader(url: str, download_folder: str, resume_byte_pos: int = None):
     block_size = 1024
     initial_pos = resume_byte_pos if resume_byte_pos else 0
     mode = 'ab' if resume_byte_pos else 'wb'
-    file = DOWNLOAD_FOLDER / url.split('/')[-1]
+
+    print(file)
 
     with open(file, mode) as f:
         with tqdm(total=file_size, unit='B',
@@ -37,31 +35,34 @@ def downloader(url: str, download_folder: str, resume_byte_pos: int = None):
                 f.write(chunk)
                 progressbar.update(len(chunk))
 
-def download_file(url: str, download_folder: str, targeted_hash: str) -> None:
+def download_file(mirror: str, file: str, download_folder: str, targeted_hash: str) -> None:
     """Execute the correct download operation.
     Depending on the size of the file online and offline, resume the
     download if the file offline is smaller than online.
     """
     
+    url = mirror+file
+    
     # Establish connection to header of file
-    DOWNLOAD_FOLDER = Path(download_folder)
     r = requests.head(url)
 
     # Get filesize of online and offline file
     file_size_online = int(r.headers.get('content-length', 0))
-    file = DOWNLOAD_FOLDER / url.split('/')[-1]
+    file = Path(file)
+    filedir = Path(file.parents[0]).absolute()
+    Path(filedir).mkdir(parents=True, exist_ok=True)
 
     if file.exists():
         file_size_offline = file.stat().st_size
 
         if file_size_online > file_size_offline:
             print(f'{file} is incomplete. Resuming download.')
-            downloader(url, download_folder, file_size_offline)
+            downloader(url, file, file_size_offline)
         else:
-            downloader(url, download_folder)
+            downloader(url, file)
             pass
     else:
-        downloader(url, download_folder)
+        downloader(url, file)
     
     if not validate_file(file, targeted_hash):
         raise AssertionError("File is corrupted, restart updater")

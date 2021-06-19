@@ -4,6 +4,7 @@
 /__pycache__
 /dist
 /build
-updater.spec
 /scripts
 /tests
+*.spec
+*.tmp

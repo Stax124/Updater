@@ -166,7 +166,7 @@ class Updater():
     def download(self, mirror: str, hashtable: str, prompt_user: bool = True):
         def execute():
             for item in compared.keys():
-                download_file(mirror+item, self.path, compared[item]["hash"])
+                download_file(mirror, item, self.path, compared[item]["hash"])
         
         if not mirror[-1] == "/": mirror+="/"
         
