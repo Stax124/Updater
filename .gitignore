@@ -6,5 +6,4 @@
 /build
 /scripts
 /tests
-*.spec
 *.tmp
