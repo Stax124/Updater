@@ -7,21 +7,22 @@ from tqdm import tqdm
 from downloader import download_file
 from pathlib import Path
 
+
 class Updater():
     """
     Main class for updating your project
-    
+
     Args:
         path (os.PathLike): Directory, from which is the hashtable generated
     """
 
     def __init__(self, path: os.PathLike = "."):
-        self.path = path # Starting point
+        self.path = path  # Starting point
         self.loaded_hashtable = None
         self.generated_hashtable = None
 
     def human_readable(self, num, suffix='B'):
-        for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+        for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
             if abs(num) < 1024.0:
                 return "%3.1f%s%s" % (num, unit, suffix)
             num /= 1024.0
@@ -38,18 +39,19 @@ class Updater():
         """
 
         sha = hashlib.sha256()
-        
+
         with open(filename, 'rb') as f:
             with tqdm(total=os.stat(filename).st_size, unit='B',
-                  unit_scale=True, unit_divisor=1024,
-                  desc="Hashing "+filename, ascii=False, leave=False) as progressbar:
+                      unit_scale=True, unit_divisor=1024,
+                      desc="Hashing "+filename, ascii=False, leave=False) as progressbar:
                 while True:
-                    chunk = f.read(1000 * 1000)  # 1MB so that memory is not exhausted
+                    # 1MB so that memory is not exhausted
+                    chunk = f.read(1000 * 1000)
                     if not chunk:
                         break
                     sha.update(chunk)
                     progressbar.update(1000*1000)
-                
+
         return sha.hexdigest()
 
     def load_hashtable(self, url: str) -> dict:
@@ -60,7 +62,7 @@ class Updater():
 
         Returns:
             dict: loaded hashtable
-        """        
+        """
 
         table = json.loads(requests.get(
             url, allow_redirects=True).content)
@@ -68,14 +70,14 @@ class Updater():
         return dict(table)
 
     def exclude(self, exclude: list) -> tuple:
-        excluded_directories, excluded_files = [] ,[]
-        
+        excluded_directories, excluded_files = [], []
+
         for item in exclude:
             if os.path.isdir(item):
                 excluded_directories.append(item)
             elif os.path.isfile(item):
-                excluded_files.append(item)
-                
+                excluded_files.append(Path(item).as_posix())
+
         return excluded_directories, excluded_files
 
     def dump_hashtable(self, hashtable: os.PathLike, exclude: list = None) -> os.PathLike:
@@ -87,7 +89,7 @@ class Updater():
 
         Returns:
             os.PathLike: Absolute path to the generated hashtable
-        """        
+        """
 
         if exclude == None:
             exclude = []
@@ -106,7 +108,7 @@ class Updater():
 
     def generate_hashtable(self, exclude: list) -> dict:
         """Generate hashtable of directory parsed to main class
-        
+
         Args:
             exclude (list): files or folders, that will be excluded
 
@@ -121,15 +123,19 @@ class Updater():
 
         excluded_directories, excluded_files = self.exclude(exclude)
 
+        print(excluded_files)
+
         for dirpath, _, files in os.walk(self.path):
-            if os.path.normpath(dirpath) in excluded_directories:
+            if os.path.normpath(dirpath).split(os.path.sep)[0] in excluded_directories:
                 continue
-            
+
             if files != []:
-                
+
                 for file in files:
-                    path = Path(os.path.normpath(os.path.join(dirpath, file))).as_posix()
+                    path = Path(os.path.normpath(
+                        os.path.join(dirpath, file))).as_posix()
                     if not path in excluded_files:
+                        print(path, path in excluded_files)
                         generated[path] = {
                             "hash": self.create_hash(path),
                             "size": os.path.getsize(path)
@@ -147,7 +153,7 @@ class Updater():
         Returns:
             dict: Absent or modified files
             int: Size of files that needs to be downloaded
-        """        
+        """
 
         self.generated_hashtable = self.generate_hashtable(exclude=list())
         self.loaded_hashtable = self.load_hashtable(url)
@@ -168,19 +174,21 @@ class Updater():
         def execute():
             for item in compared.keys():
                 download_file(mirror, item, self.path, compared[item]["hash"])
-        
-        if not mirror[-1] == "/": mirror+="/"
-        
+
+        if not mirror[-1] == "/":
+            mirror += "/"
+
         compared, size = self.compare(hashtable)
-        
+
         if size == 0:
             print("All files validated, nothing to download")
             return
-        
+
         if prompt_user:
             try:
-                response = input(f"Total size: {self.human_readable(size)}\nDo you want to start download ? (y/n): ")
-                
+                response = input(
+                    f"Total size: {self.human_readable(size)}\nDo you want to start download ? (y/n): ")
+
                 if response == "" or response.lower() == "y":
                     execute()
                 else:
