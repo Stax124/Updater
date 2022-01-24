@@ -119,11 +119,12 @@ class Updater():
             >>> }
         """
 
+        if not exclude:
+            exclude = list()
+
         generated = {}
 
         excluded_directories, excluded_files = self.exclude(exclude)
-
-        print(excluded_files)
 
         for dirpath, _, files in os.walk(self.path):
             if os.path.normpath(dirpath).split(os.path.sep)[0] in excluded_directories:
@@ -135,7 +136,6 @@ class Updater():
                     path = Path(os.path.normpath(
                         os.path.join(dirpath, file))).as_posix()
                     if not path in excluded_files:
-                        print(path, path in excluded_files)
                         generated[path] = {
                             "hash": self.create_hash(path),
                             "size": os.path.getsize(path)
@@ -143,20 +143,45 @@ class Updater():
 
         return dict(generated)
 
-    def compare(self, url: str) -> list:
+    def generate_hashtable_from_remote(self, remote_hashtable: dict) -> dict:
+        """Generate hashtable of directory parsed to main class
+
+        Args:
+            remote_hashtable (dict): Only files in remote_hashtable will be hashed locally
+
+        Returns:
+            >>> "filename": {
+            >>>     'hash': 'MD5 hash'
+            >>>     'size': 'size of file'
+            >>> }
+        """
+
+        generated = {}
+
+        for file in [i for i in remote_hashtable]:
+            path = Path(os.path.normpath(os.path.join(".", file))).as_posix()
+            generated[path] = {
+                "hash": self.create_hash(path),
+                "size": os.path.getsize(path)
+            }
+
+        return dict(generated)
+
+    def compare(self, url: str, hash_all: bool = False) -> list:
         """Generate hashtable and compare it to local file or mirror\n
 
         Args:
-            mode (Mode): Type of hashtable (file, URL)
             url (str): Path or URL to hashtable
+            hash_all (bool, optional): If True, all files will be hashed. If False, only files present in remote hashtable will be hashed. Defaults to False.
 
         Returns:
             dict: Absent or modified files
             int: Size of files that needs to be downloaded
         """
 
-        self.generated_hashtable = self.generate_hashtable(exclude=list())
         self.loaded_hashtable = self.load_hashtable(url)
+        self.generated_hashtable = self.generate_hashtable(
+            exclude=None) if hash_all else self.generate_hashtable_from_remote(self.loaded_hashtable)
 
         diff = {}
         size = 0
@@ -182,7 +207,7 @@ class Updater():
 
         if size == 0:
             print("All files validated, nothing to download")
-            return
+            return ([], 0)
 
         if prompt_user:
             try:
