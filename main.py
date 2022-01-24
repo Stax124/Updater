@@ -37,4 +37,4 @@ elif args.verify:
 
     print("Total size: "+main_updater.human_readable(size))
 else:
-    main_updater.download(args.mirror, args.hashtable, args.yes)
+    main_updater.download(args.mirror, args.hashtable, args.yes, args.hash_all)

@@ -195,7 +195,7 @@ class Updater():
 
         return (diff, size)
 
-    def download(self, mirror: str, hashtable: str, prompt_user: bool = True):
+    def download(self, mirror: str, hashtable: str, prompt_user: bool = True, hash_all: bool = False):
         def execute():
             for item in compared.keys():
                 download_file(mirror, item, self.path, compared[item]["hash"])
@@ -203,7 +203,7 @@ class Updater():
         if not mirror[-1] == "/":
             mirror += "/"
 
-        compared, size = self.compare(hashtable)
+        compared, size = self.compare(hashtable, hash_all)
 
         if size == 0:
             print("All files validated, nothing to download")
