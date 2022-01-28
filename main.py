@@ -1,5 +1,6 @@
 import argparse
 import updater
+import coloredlogs
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-g", "--generate", action="store_true",
@@ -14,10 +15,17 @@ parser.add_argument("-m", "--mirror", type=str,
                     help="URL, that will be used as root for downloading")
 parser.add_argument("-c", "--no-changed", action="store_true",
                     help="Suppress outputting list of differences")
-parser.add_argument("-a", "--all", action="store_true",
+parser.add_argument("-a", "--hash_all", action="store_true",
                     help="Hash all files, not only those present in remote hashtable")
+parser.add_argument("--verbose", action="store_true",
+                    help="Verbose output", default=False)
 parser.add_argument("hashtable", type=str, help="URL or path to hashtable")
 args = parser.parse_args()
+
+if args.verbose:
+    coloredlogs.install(level='DEBUG')
+else:
+    coloredlogs.install(level='INFO')
 
 args.exclude = args.exclude.split(",") if args.exclude != None else []
 args.yes = not args.yes
@@ -30,6 +38,8 @@ elif args.verify:
     changed, size = main_updater.compare(args.hashtable, args.hash_all)
     changed = list(changed)
     changed.sort()
+
+    print("---Changed or missing files---")
 
     if not args.no_changed:
         for item in changed:

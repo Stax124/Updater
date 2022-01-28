@@ -1,5 +1,6 @@
 import requests
 import hashlib
+import logging as console
 import os
 import json
 import pathlib
@@ -40,17 +41,20 @@ class Updater():
 
         sha = hashlib.sha256()
 
-        with open(filename, 'rb') as f:
-            with tqdm(total=os.stat(filename).st_size, unit='B',
-                      unit_scale=True, unit_divisor=1024,
-                      desc="Hashing "+filename, ascii=False, leave=False) as progressbar:
-                while True:
-                    # 1MB so that memory is not exhausted
-                    chunk = f.read(1000 * 1000)
-                    if not chunk:
-                        break
-                    sha.update(chunk)
-                    progressbar.update(1000*1000)
+        try:
+            with open(filename, 'rb') as f:
+                with tqdm(total=os.stat(filename).st_size, unit='B',
+                          unit_scale=True, unit_divisor=1024,
+                          desc="Hashing "+filename, ascii=False, leave=False) as progressbar:
+                    while True:
+                        # 1MB so that memory is not exhausted
+                        chunk = f.read(1000 * 1000)
+                        if not chunk:
+                            break
+                        sha.update(chunk)
+                        progressbar.update(1000*1000)
+        except FileNotFoundError:
+            console.error(f"File not found: {filename}")
 
         return sha.hexdigest()
 
@@ -159,11 +163,15 @@ class Updater():
         generated = {}
 
         for file in [i for i in remote_hashtable]:
-            path = Path(os.path.normpath(os.path.join(".", file))).as_posix()
-            generated[path] = {
-                "hash": self.create_hash(path),
-                "size": os.path.getsize(path)
-            }
+            try:
+                path = Path(os.path.normpath(
+                    os.path.join(".", file))).as_posix()
+                generated[path] = {
+                    "hash": self.create_hash(path),
+                    "size": os.path.getsize(path)
+                }
+            except FileNotFoundError:
+                console.error(f"File not found: {file}")
 
         return dict(generated)
 
@@ -206,7 +214,7 @@ class Updater():
         compared, size = self.compare(hashtable, hash_all)
 
         if size == 0:
-            print("All files validated, nothing to download")
+            console.info("All files validated, nothing to download")
             return ([], 0)
 
         if prompt_user:
@@ -219,6 +227,6 @@ class Updater():
                 else:
                     raise KeyboardInterrupt
             except KeyboardInterrupt:
-                print("\nCancelled by user, quitting")
+                console.warning("\nCancelled by user, quitting")
         else:
             execute()
