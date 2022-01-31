@@ -4,6 +4,6 @@
 /__pycache__
 /dist
 /build
-/scripts
+/scripts/buildMove.ps1
 /tests
 *.tmp

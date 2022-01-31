@@ -1,0 +1,1 @@
+pyinstaller .\main.py -n "updater" -F --icon "images/updater.ico"
