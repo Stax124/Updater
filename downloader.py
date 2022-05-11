@@ -1,12 +1,14 @@
 import hashlib
-import requests
-
+from os import PathLike
 from pathlib import Path
+
+import requests
 from tqdm import tqdm
 
-def downloader(url: str, file: Path, resume_byte_pos: int = None):
+
+def downloader(url: str, file: Path, resume_byte_pos: int | None = None):
     """Download url in ``URLS[position]`` to disk with possible resumption."""
-    
+
     # Get size of file
     r = requests.head(url)
     file_size = int(r.headers.get('content-length', 0))
@@ -35,20 +37,21 @@ def downloader(url: str, file: Path, resume_byte_pos: int = None):
                 f.write(chunk)
                 progressbar.update(len(chunk))
 
-def download_file(mirror: str, file: str, download_folder: str, targeted_hash: str) -> None:
+
+def download_file(mirror: str, filepath: str, download_folder: str | PathLike, targeted_hash: str) -> None:
     """Execute the correct download operation.
     Depending on the size of the file online and offline, resume the
     download if the file offline is smaller than online.
     """
-    
-    url = mirror+file
-    
+
+    url = mirror+filepath
+
     # Establish connection to header of file
     r = requests.head(url)
 
     # Get filesize of online and offline file
     file_size_online = int(r.headers.get('content-length', 0))
-    file = Path(file)
+    file = Path(filepath)
     filedir = Path(file.parents[0]).absolute()
     Path(filedir).mkdir(parents=True, exist_ok=True)
 
@@ -63,28 +66,32 @@ def download_file(mirror: str, file: str, download_folder: str, targeted_hash: s
             pass
     else:
         downloader(url, file)
-    
+
     if not validate_file(file, targeted_hash):
         raise AssertionError("File is corrupted, restart updater")
 
-def validate_file(file: str, hash: str) -> None:
+
+def validate_file(file: Path, hash: str) -> bool:
     """Validate a given file with its hash.
     The downloaded file is hashed and compared to a pre-registered
     has value to validate the download procedure.
     """
 
     sha = hashlib.sha256()
-    
+
     with open(file, 'rb') as f:
         with tqdm(total=file.stat().st_size, unit='B',
                   unit_scale=True, unit_divisor=1024,
                   desc=file.name, ascii=False, leave=False) as progressbar:
             while True:
-                chunk = f.read(1000 * 1000)  # 1MB so that memory is not exhausted
+                # 1MB so that memory is not exhausted
+                chunk = f.read(1000 * 1000)
                 if not chunk:
                     break
                 sha.update(chunk)
                 progressbar.update(1000)
-    
-    if not sha.hexdigest() == hash: return False
-    else: return True
+
+    if not sha.hexdigest() == hash:
+        return False
+    else:
+        return True
