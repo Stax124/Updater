@@ -87,4 +87,4 @@ else:
             args.mirror += "/"
 
     console.debug("Downloading hashtable...")
-    main_updater.run(args.mirror, args.hashtable, args.yes)
+    main_updater.run(args.mirror, args.hashtable, args.yes, args.reset)

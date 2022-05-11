@@ -191,11 +191,12 @@ class Updater():
 
         return dict(generated)
 
-    def compare(self, url: str) -> tuple[dict[str, dict[str, int]], int]:
+    def compare(self, url: str, hash_all: bool = False) -> tuple[dict[str, dict[str, int]], int]:
         """Generate hashtable and compare it to local file or mirror\n
 
         Args:
             url (str): Path or URL to hashtable
+            hash_all (bool, optional): If True, all files will be hashed. Defaults to False.
 
         Returns:
             dict: Absent or modified files
@@ -203,8 +204,8 @@ class Updater():
         """
 
         self.loaded_hashtable = self.load_hashtable(url)
-        self.generated_hashtable = self.generate_hashtable_from_remote(
-            self.loaded_hashtable)
+        self.generated_hashtable = self.generate_hashtable(
+            exclude=list()) if hash_all else self.generate_hashtable_from_remote(self.loaded_hashtable)
 
         diff = {}
         size = 0
@@ -218,7 +219,21 @@ class Updater():
 
         return (diff, size)
 
-    def run(self, mirror: str, hashtable: str, prompt_user: bool = True, hash_all: bool = False, reset_to_remote: bool = False):
+    def reset_head(self) -> None:
+        "Removes all files that are not present in the remote hashtable"
+
+        # get list of all files that are in generated_hashtable but not in loaded_hashtable
+        filtered_list = [
+            i for i in self.generated_hashtable if i not in self.loaded_hashtable]
+
+        # remove all files that are in filtered_list
+        for file in filtered_list:
+            os.remove(file)
+
+        console.info(
+            f"{len(filtered_list)} files were reset to state of remote repository")
+
+    def run(self, mirror: str, hashtable: str, prompt_user: bool = True, reset_to_remote: bool = False):
         def download_all():
             """Download all missing files"""
 
@@ -226,7 +241,10 @@ class Updater():
                 download_file(mirror, item, self.path,
                               compared[item]["hash"])  # type: ignore
 
-        compared, size = self.compare(hashtable)
+        compared, size = self.compare(hashtable, hash_all=reset_to_remote)
+
+        if reset_to_remote:
+            self.reset_head()
 
         if size == 0:
             console.info("All files validated, nothing to download")
