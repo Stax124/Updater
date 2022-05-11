@@ -34,10 +34,18 @@ parser.add_argument("hashtable", type=str, help="URL or path to hashtable")
 args = parser.parse_args()
 
 # Change logging level to DEBUG if verbose is set
+
+
 if args.verbose:
-    coloredlogs.install(level='DEBUG')
+    # Apply colored logs
+    coloredlogs.install(
+        level='DEBUG', fmt='%(levelname)s | %(asctime)s | %(message)s', datefmt=r"%H:%M:%S"
+    )
 else:
-    coloredlogs.install(level='INFO')
+    # Apply colored logs
+    coloredlogs.install(
+        level='INFO', fmt='%(levelname)s | %(asctime)s | %(message)s', datefmt=r"%H:%M:%S"
+    )
 
 # Correct exclude list if it is set
 args.exclude = args.exclude.split(",") if args.exclude != None else []
@@ -72,7 +80,7 @@ else:
         pattern = re.compile(r"(.*/)")
         args.mirror = pattern.search(args.hashtable).group(1)  # type: ignore
 
-        print(f"Using mirror: {args.mirror}")
+        console.info(f"Using mirror: {args.mirror}")
 
         # We need slash at the end of mirror for correct URIs
         if not args.mirror[-1] == "/":
