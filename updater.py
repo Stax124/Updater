@@ -9,7 +9,7 @@ from typing import Union
 import requests
 from tqdm import tqdm
 
-from downloader import download_file
+from core.requests_downloader import RequestsDownloader
 
 
 class Updater():
@@ -20,7 +20,7 @@ class Updater():
         path (os.PathLike): Directory, from which is the hashtable generated
     """
 
-    def __init__(self, path: os.PathLike = "."):  # type: ignore
+    def __init__(self, path: str | os.PathLike = "."):  # type: ignore
         self.path = path
         self.loaded_hashtable = dict[str, dict[str, int]]()
         self.generated_hashtable = dict[str, dict[str, int]]()
@@ -207,7 +207,7 @@ class Updater():
         self.generated_hashtable = self.generate_hashtable(
             exclude=list()) if hash_all else self.generate_hashtable_from_remote(self.loaded_hashtable)
 
-        diff = {}
+        diff: dict[str, dict[str, int]] = {}
         size = 0
         for k in self.loaded_hashtable:
             if k in self.generated_hashtable and self.loaded_hashtable[k] != self.generated_hashtable[k]:
@@ -226,6 +226,11 @@ class Updater():
         filtered_list = [
             i for i in self.generated_hashtable if i not in self.loaded_hashtable]
 
+        console.info(f"Removing {filtered_list} files")
+        
+        console.info(f"Generated: {self.generated_hashtable}")
+        console.info(f"Loaded: {self.loaded_hashtable}")
+
         # remove all files that are in filtered_list
         for file in filtered_list:
             os.remove(file)
@@ -237,9 +242,12 @@ class Updater():
         def download_all():
             """Download all missing files"""
 
-            for item in compared.keys():
-                download_file(mirror, item, self.path,
-                              compared[item]["hash"])  # type: ignore
+            # for item in compared.keys():
+            #     download_file(mirror, item, self.path,
+            #                   compared[item]["hash"])  # type: ignore
+
+            downloader = RequestsDownloader()
+            downloader.download(compared, mirror, self.path)
 
         compared, size = self.compare(hashtable, hash_all=reset_to_remote)
 

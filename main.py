@@ -26,6 +26,8 @@ parser.add_argument("-c", "--no-changed", action="store_true",
                     help="Suppress outputting list of differences")
 parser.add_argument("-a", "--hash_all", action="store_true",
                     help="Hash all files, not only those present in remote hashtable")
+parser.add_argument("-d", "--destination", type=str,
+                    default=".", help="Destination directory")
 parser.add_argument("--verbose", action="store_true",
                     help="Verbose output", default=False)
 parser.add_argument("-r", "--reset", action="store_true", default=False,
@@ -53,7 +55,7 @@ console.debug(f"Parsed exclude: {args.exclude}")
 
 args.yes = not args.yes
 
-main_updater = updater.Updater()
+main_updater = updater.Updater(args.destination)
 
 if args.generate:
     # Generate hashtable and exit
