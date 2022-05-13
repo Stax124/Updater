@@ -226,10 +226,7 @@ class Updater():
         filtered_list = [
             i for i in self.generated_hashtable if i not in self.loaded_hashtable]
 
-        console.info(f"Removing {filtered_list} files")
-
-        console.info(f"Generated: {self.generated_hashtable}")
-        console.info(f"Loaded: {self.loaded_hashtable}")
+        console.debug(f"Removing {filtered_list} files")
 
         # remove all files that are in filtered_list
         for file in filtered_list:
