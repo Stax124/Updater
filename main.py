@@ -16,7 +16,7 @@ parser.add_argument("-g", "--generate", action="store_true",
                     help="Generate hashtable of current directory (recursive)")
 parser.add_argument("-e", "--exclude", type=str,
                     help="Exclude directories or files separated by comma (',') (buidl,dist,venv,__pycache__)")
-parser.add_argument("-v", "--verify", action="store_true",
+parser.add_argument("--verify", action="store_true",
                     help="Don't download the files, just verify integrity")
 parser.add_argument("-y", "--yes", action="store_true",
                     help="Say yes to any prompt")
@@ -28,7 +28,7 @@ parser.add_argument("-a", "--hash_all", action="store_true",
                     help="Hash all files, not only those present in remote hashtable")
 parser.add_argument("-d", "--destination", type=str,
                     default=".", help="Destination directory")
-parser.add_argument("--verbose", action="store_true",
+parser.add_argument("-v", "--verbose", action="store_true",
                     help="Verbose output", default=False)
 parser.add_argument("-r", "--reset", action="store_true", default=False,
                     help="Overwrite any changes made to the files, reset everything to the remote state")

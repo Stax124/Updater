@@ -183,8 +183,8 @@ class Updater():
                 path = Path(os.path.normpath(
                     os.path.join(".", file))).as_posix()
                 generated[path] = {
-                    "hash": self.create_hash(path),
-                    "size": os.path.getsize(path)
+                    "hash": self.create_hash(Path(os.path.join(self.path, path)).as_posix()),
+                    "size": os.path.getsize(Path(os.path.join(self.path, path)).as_posix())
                 }
             except FileNotFoundError:
                 pass
@@ -227,7 +227,7 @@ class Updater():
             i for i in self.generated_hashtable if i not in self.loaded_hashtable]
 
         console.info(f"Removing {filtered_list} files")
-        
+
         console.info(f"Generated: {self.generated_hashtable}")
         console.info(f"Loaded: {self.loaded_hashtable}")
 
