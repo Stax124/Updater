@@ -1,12 +1,17 @@
-import requests
 import hashlib
+import json
 import logging as console
 import os
-import json
 import pathlib
-from tqdm import tqdm
-from downloader import download_file
 from pathlib import Path
+from typing import Union
+
+import requests
+from rich.progress import (BarColumn, DownloadColumn, Progress, TextColumn,
+                           TimeRemainingColumn, TransferSpeedColumn)
+
+from core.requests_downloader import RequestsDownloader
+from core.urllib_downloader import UrllibDownloader
 
 
 class Updater():
@@ -17,10 +22,10 @@ class Updater():
         path (os.PathLike): Directory, from which is the hashtable generated
     """
 
-    def __init__(self, path: os.PathLike = "."):
-        self.path = path  # Starting point
-        self.loaded_hashtable = None
-        self.generated_hashtable = None
+    def __init__(self, path: str | os.PathLike = "."):  # type: ignore
+        self.path = path
+        self.loaded_hashtable = dict[str, dict[str, int]]()
+        self.generated_hashtable = dict[str, dict[str, int]]()
 
     def human_readable(self, num, suffix='B'):
         for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
@@ -29,7 +34,7 @@ class Updater():
             num /= 1024.0
         return "%.1f%s%s" % (num, 'Yi', suffix)
 
-    def create_hash(self, filename: os.PathLike) -> str:
+    def create_hash(self, filename: Union[str, os.PathLike]) -> str:
         """Create MD5 hash of file
 
         Args:
@@ -39,26 +44,37 @@ class Updater():
             str: MD5 hash
         """
 
+        console.debug(f"Hashing: {filename}")
+
         sha = hashlib.sha256()
 
         try:
             with open(filename, 'rb') as f:
-                with tqdm(total=os.stat(filename).st_size, unit='B',
-                          unit_scale=True, unit_divisor=1024,
-                          desc="Hashing "+filename, ascii=False, leave=False) as progressbar:
+                with Progress(TextColumn("[bold purple]H: [bold blue]{task.fields[filename]}", justify="right"),
+                              BarColumn(bar_width=None),
+                              "[progress.percentage]{task.percentage:>3.1f}%",
+                              "•",
+                              DownloadColumn(),
+                              "•",
+                              TransferSpeedColumn(),
+                              "•",
+                              TimeRemainingColumn(),) as progress:
+                    task = progress.add_task(filename.__str__(), filename=Path(
+                        filename).name, total=os.stat(filename).st_size)
                     while True:
                         # 1MB so that memory is not exhausted
                         chunk = f.read(1000 * 1000)
                         if not chunk:
                             break
                         sha.update(chunk)
-                        progressbar.update(1000*1000)
+                        progress.update(task, advance=len(chunk))
+
         except FileNotFoundError:
             console.error(f"File not found: {filename}")
 
         return sha.hexdigest()
 
-    def load_hashtable(self, url: str) -> dict:
+    def load_hashtable(self, url: str) -> dict[str, dict]:
         """Load URL as dictionary
 
         Args:
@@ -68,23 +84,31 @@ class Updater():
             dict: loaded hashtable
         """
 
+        console.debug(f"Loading hashtable from {url}")
+
         table = json.loads(requests.get(
             url, allow_redirects=True).content)
 
         return dict(table)
 
-    def exclude(self, exclude: list) -> tuple:
+    def exclude(self, exclude: list[str]) -> tuple:
         excluded_directories, excluded_files = [], []
 
         for item in exclude:
+            console.debug(f"Exclude - processing: {item}")
             if os.path.isdir(item):
+                console.debug(f"Exclude - processing: {item} is directory")
                 excluded_directories.append(item)
             elif os.path.isfile(item):
+                console.debug(f"Exclude - processing: {item} is file")
                 excluded_files.append(Path(item).as_posix())
+
+        console.debug(f"Excluded directories: {excluded_directories}")
+        console.debug(f"Excluded files: {excluded_files}")
 
         return excluded_directories, excluded_files
 
-    def dump_hashtable(self, hashtable: os.PathLike, exclude: list = None) -> os.PathLike:
+    def dump_hashtable(self, hashtable: os.PathLike, exclude: list[str] | None = None) -> os.PathLike:
         """Create new hashtable and dump it into file
 
         Args:
@@ -94,23 +118,27 @@ class Updater():
         Returns:
             os.PathLike: Absolute path to the generated hashtable
         """
+        _exclude: list[str] = []
 
         if exclude == None:
-            exclude = []
+            _exclude = []
+        else:
+            _exclude = exclude  # type: ignore
 
         _new = []
-        for item in exclude:
+        for item in _exclude:
             _new.append(os.path.normpath(item))
-        exclude = _new
+        _exclude = _new
 
-        generated = self.generate_hashtable(exclude)
+        generated = self.generate_hashtable(_exclude)
 
+        console.debug(f"Dumping hashtable to {hashtable}")
         with open(hashtable, "w", encoding="utf-8") as ht:
             json.dump(generated, ht, ensure_ascii=False, indent=4)
 
         return os.path.abspath(hashtable)
 
-    def generate_hashtable(self, exclude: list) -> dict:
+    def generate_hashtable(self, exclude: list) -> dict:  # ! DEBUG THIS
         """Generate hashtable of directory parsed to main class
 
         Args:
@@ -123,24 +151,29 @@ class Updater():
             >>> }
         """
 
-        if not exclude:
-            exclude = list()
-
         generated = {}
 
         excluded_directories, excluded_files = self.exclude(exclude)
 
         for dirpath, _, files in os.walk(self.path):
+            console.debug(
+                f"Formated: {os.path.normpath(dirpath).split(os.path.sep)[0]}; Excluded directories: {excluded_directories}; Skipping: {os.path.normpath(dirpath).split(os.path.sep)[0] in excluded_directories}")
             if os.path.normpath(dirpath).split(os.path.sep)[0] in excluded_directories:
                 continue
 
             if files != []:
 
+                relative_dirpath = os.path.relpath(dirpath, self.path)
+
                 for file in files:
+                    relative_path = Path(os.path.normpath(
+                        os.path.join(relative_dirpath, file))).as_posix()
                     path = Path(os.path.normpath(
                         os.path.join(dirpath, file))).as_posix()
+                    console.debug(
+                        f"Path: {path}, Relative path: {relative_dirpath}, Dirpath: {relative_dirpath}, File: {file}")
                     if not path in excluded_files:
-                        generated[path] = {
+                        generated[relative_path] = {
                             "hash": self.create_hash(path),
                             "size": os.path.getsize(path)
                         }
@@ -167,20 +200,28 @@ class Updater():
                 path = Path(os.path.normpath(
                     os.path.join(".", file))).as_posix()
                 generated[path] = {
-                    "hash": self.create_hash(path),
-                    "size": os.path.getsize(path)
+                    "hash": self.create_hash(Path(os.path.join(self.path, path)).as_posix()),
+                    "size": os.path.getsize(Path(os.path.join(self.path, path)).as_posix())
                 }
             except FileNotFoundError:
-                console.error(f"File not found: {file}")
+                pass
 
         return dict(generated)
 
-    def compare(self, url: str, hash_all: bool = False) -> list:
+    def generate_extended_hashtable(self) -> dict[str, dict[str, int]]:
+        extended_hashtable = {}
+        for i in self.loaded_hashtable:
+            extended_hashtable[Path(os.path.join(
+                self.path, i)).as_posix()] = self.loaded_hashtable[i]
+
+        return extended_hashtable
+
+    def compare(self, url: str, reset_to_remote: bool = False) -> tuple[dict[str, dict[str, int]], int]:
         """Generate hashtable and compare it to local file or mirror\n
 
         Args:
             url (str): Path or URL to hashtable
-            hash_all (bool, optional): If True, all files will be hashed. If False, only files present in remote hashtable will be hashed. Defaults to False.
+            hash_all (bool, optional): If True, all files will be hashed. Defaults to False.
 
         Returns:
             dict: Absent or modified files
@@ -188,10 +229,15 @@ class Updater():
         """
 
         self.loaded_hashtable = self.load_hashtable(url)
+        self.extended_hashtable = self.generate_extended_hashtable()
         self.generated_hashtable = self.generate_hashtable(
-            exclude=None) if hash_all else self.generate_hashtable_from_remote(self.loaded_hashtable)
+            exclude=list()) if reset_to_remote else self.generate_hashtable_from_remote(self.loaded_hashtable)
 
-        diff = {}
+        console.debug(f"Generated hashtable: {self.generated_hashtable}")
+        console.debug(f"Loaded hashtable: {self.loaded_hashtable}")
+        console.debug(f"Extended hashtable: {self.extended_hashtable}")
+
+        diff: dict[str, dict[str, int]] = {}
         size = 0
         for k in self.loaded_hashtable:
             if k in self.generated_hashtable and self.loaded_hashtable[k] != self.generated_hashtable[k]:
@@ -201,32 +247,70 @@ class Updater():
                 diff[pathlib.Path(k).as_posix()] = self.loaded_hashtable[k]
                 size += self.loaded_hashtable[k]["size"]
 
+        console.debug(f"Compared: {(diff, size)}")
+
         return (diff, size)
 
-    def download(self, mirror: str, hashtable: str, prompt_user: bool = True, hash_all: bool = False):
-        def execute():
-            for item in compared.keys():
-                download_file(mirror, item, self.path, compared[item]["hash"])
+    def reset_head(self) -> None:
+        "Removes all files that are not present in the remote hashtable"
 
-        if not mirror[-1] == "/":
-            mirror += "/"
+        # extend loaded_hashtable with selected path
+        extended_hashtable = {}
+        for i in self.loaded_hashtable:
+            extended_hashtable[Path(os.path.join(
+                self.path, i)).as_posix()] = self.loaded_hashtable[i]
 
-        compared, size = self.compare(hashtable, hash_all)
+        # get list of all files that are in generated_hashtable but not in loaded_hashtable
+        filtered_list = [
+            i for i in self.extended_hashtable if i not in extended_hashtable]
+
+        console.debug(f"Removing {filtered_list} files")
+
+        # remove all files that are in filtered_list
+        for file in filtered_list:
+            os.remove(file)
+
+        console.info(
+            f"{len(filtered_list)} files were reset to state of remote repository")
+
+    def run(self, mirror: str, hashtable: str, prompt_user: bool = True, reset_to_remote: bool = False, downloader_type: str = "requests"):
+        def download_all():
+            """Download all missing files"""
+
+            # for item in compared.keys():
+            #     download_file(mirror, item, self.path,
+            #                   compared[item]["hash"])  # type: ignore
+
+            match downloader_type:
+                case "requests":
+                    downloader = RequestsDownloader()
+                case "urllib":
+                    downloader = UrllibDownloader()
+                case _:
+                    raise ValueError("No downloader selected")
+
+            downloader.download(compared, mirror, self.path)
+
+        compared, size = self.compare(
+            hashtable, reset_to_remote=reset_to_remote)
+
+        if reset_to_remote:
+            self.reset_head()
 
         if size == 0:
             console.info("All files validated, nothing to download")
-            return ([], 0)
+            return
 
         if prompt_user:
             try:
                 response = input(
-                    f"Total size: {self.human_readable(size)}\nDo you want to start download ? (y/n): ")
+                    f"Total size: {self.human_readable(size)}\nDo you want to start download ? (y/n): ").strip().lower()
 
-                if response == "" or response.lower() == "y":
-                    execute()
+                if response == "y":
+                    download_all()
                 else:
                     raise KeyboardInterrupt
             except KeyboardInterrupt:
                 console.warning("\nCancelled by user, quitting")
         else:
-            execute()
+            download_all()
