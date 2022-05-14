@@ -59,8 +59,8 @@ class Updater():
                               TransferSpeedColumn(),
                               "•",
                               TimeRemainingColumn(),) as progress:
-                    task = progress.add_task(filename.__str__(), filename=filename.__str__() if len(filename.__str__(
-                    )) < 20 else filename.__str__()[:20], total=os.stat(filename).st_size)
+                    task = progress.add_task(filename.__str__(), filename=Path(
+                        filename).name, total=os.stat(filename).st_size)
                     while True:
                         # 1MB so that memory is not exhausted
                         chunk = f.read(1000 * 1000)
