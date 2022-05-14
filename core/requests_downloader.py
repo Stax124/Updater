@@ -54,7 +54,7 @@ class RequestsDownloader(DownloaderBase):
                     if not chunk:
                         break
                     sha.update(chunk)
-                    progress.update(task, advance=1000)
+                    progress.update(task, advance=len(chunk))
 
         if not sha.hexdigest() == hash:
             return False

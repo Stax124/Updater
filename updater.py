@@ -67,7 +67,7 @@ class Updater():
                         if not chunk:
                             break
                         sha.update(chunk)
-                        progress.update(task, advance=1000*1000)
+                        progress.update(task, advance=len(chunk))
 
         except FileNotFoundError:
             console.error(f"File not found: {filename}")
