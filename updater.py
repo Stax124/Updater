@@ -47,11 +47,10 @@ class Updater():
         sha = hashlib.sha256()
 
         try:
-            with Progress(expand=True) as progress:
-                task = progress.add_task("Hashing "+filename.__str__() if len(filename.__str__(
-                )) < 20 else filename.__str__()[:20], total=os.stat(filename).st_size)
-
-                with open(filename, 'rb') as f:
+            with open(filename, 'rb') as f:
+                with Progress(expand=True) as progress:
+                    task = progress.add_task("Hashing "+filename.__str__() if len(filename.__str__(
+                    )) < 20 else filename.__str__()[:20], total=os.stat(filename).st_size)
                     while True:
                         # 1MB so that memory is not exhausted
                         chunk = f.read(1000 * 1000)
