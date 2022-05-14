@@ -2,6 +2,8 @@ import os.path
 import signal
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
+from os import PathLike
+from pathlib import Path
 from threading import Event
 from urllib.request import urlopen
 
@@ -38,11 +40,11 @@ class UrllibDownloader(DownloaderBase):
 
     def copy_url(self, task_id: TaskID, url: str, path: str) -> None:
         """Copy data from a url to a local file."""
-        progress.console.log(f"Requesting {url}")
         response = urlopen(url)
 
         # This will break if the response doesn't contain content length
         progress.update(task_id, total=int(response.info()["Content-length"]))
+
         with open(path, "wb") as dest_file:
             progress.start_task(task_id)
             for data in iter(partial(response.read, 32768), b""):
@@ -51,16 +53,21 @@ class UrllibDownloader(DownloaderBase):
                 if self.done_event.is_set():
                     return
 
-        progress.console.log(f"Downloaded {path}")
-
-    def download(self, urls: list[str], dest_dir: str):
+    def download(self, compared: dict[str, dict[str, int]], mirror: str,  dest_dir: str | PathLike):
         """Download multuple files to the given directory."""
+
+        urls = [(mirror+i, i) for i in compared.keys()]
+
+        for url, file in urls:
+            dest_path = os.path.join(dest_dir, file)
+            file = Path(dest_path)
+            filedir = Path(file.parents[0]).absolute()
+            Path(filedir).mkdir(parents=True, exist_ok=True)
 
         with progress:
             with ThreadPoolExecutor(max_workers=4) as pool:
-                for url in urls:
-                    filename = url.split("/")[-1]
-                    dest_path = os.path.join(dest_dir, filename)
+                for url, file in urls:
+                    dest_path = os.path.join(dest_dir, file)
                     task_id = progress.add_task(
-                        "download", filename=filename, start=False)
+                        "Downloading", filename=file, start=False)
                     pool.submit(self.copy_url, task_id, url, dest_path)

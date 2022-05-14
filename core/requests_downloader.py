@@ -5,7 +5,8 @@ from os import PathLike
 from pathlib import Path
 
 import requests
-from rich.progress import Progress
+from rich.progress import (BarColumn, DownloadColumn, Progress, TextColumn,
+                           TimeRemainingColumn, TransferSpeedColumn)
 
 from core.downloader_template import DownloaderBase
 
@@ -31,9 +32,17 @@ class RequestsDownloader(DownloaderBase):
 
         sha = hashlib.sha256()
 
-        with Progress(expand=True) as progress:
+        with Progress(TextColumn("[bold purple]H: [bold blue]{task.fields[filename]}", justify="right"),
+                      BarColumn(bar_width=None),
+                      "[progress.percentage]{task.percentage:>3.1f}%",
+                      "•",
+                      DownloadColumn(),
+                      "•",
+                      TransferSpeedColumn(),
+                      "•",
+                      TimeRemainingColumn(),) as progress:
             task = progress.add_task(
-                f"Validating {file.name}", total=file.stat().st_size)
+                file.name, filename=file.name, total=file.stat().st_size)
 
             with open(file, 'rb') as f:
                 # with tqdm(total=file.stat().st_size, unit='B',
@@ -86,9 +95,17 @@ class RequestsDownloader(DownloaderBase):
         initial_pos = resume_byte_position if resume_byte_position else 0
         mode = 'ab' if resume_byte_position else 'wb'
 
-        with Progress(expand=True) as progress:
+        with Progress(TextColumn("[bold green]D: [bold blue]{task.fields[filename]}", justify="right"),
+                      BarColumn(bar_width=None),
+                      "[progress.percentage]{task.percentage:>3.1f}%",
+                      "•",
+                      DownloadColumn(),
+                      "•",
+                      TransferSpeedColumn(),
+                      "•",
+                      TimeRemainingColumn(),) as progress:
             task = progress.add_task(
-                f"Downloading {file}", total=file_size, completed=initial_pos)
+                file.name, filename=file.name, total=file_size, completed=initial_pos)
 
             with open(file, mode) as f:
                 # with tqdm(total=file_size, unit='B',

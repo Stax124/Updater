@@ -7,9 +7,11 @@ from pathlib import Path
 from typing import Union
 
 import requests
-from rich.progress import Progress
+from rich.progress import (BarColumn, DownloadColumn, Progress, TextColumn,
+                           TimeRemainingColumn, TransferSpeedColumn)
 
 from core.requests_downloader import RequestsDownloader
+from core.urllib_downloader import UrllibDownloader
 
 
 class Updater():
@@ -48,8 +50,16 @@ class Updater():
 
         try:
             with open(filename, 'rb') as f:
-                with Progress(expand=True) as progress:
-                    task = progress.add_task("Hashing "+filename.__str__() if len(filename.__str__(
+                with Progress(TextColumn("[bold purple]H: [bold blue]{task.fields[filename]}", justify="right"),
+                              BarColumn(bar_width=None),
+                              "[progress.percentage]{task.percentage:>3.1f}%",
+                              "•",
+                              DownloadColumn(),
+                              "•",
+                              TransferSpeedColumn(),
+                              "•",
+                              TimeRemainingColumn(),) as progress:
+                    task = progress.add_task(filename.__str__(), filename=filename.__str__() if len(filename.__str__(
                     )) < 20 else filename.__str__()[:20], total=os.stat(filename).st_size)
                     while True:
                         # 1MB so that memory is not exhausted
@@ -263,7 +273,7 @@ class Updater():
         console.info(
             f"{len(filtered_list)} files were reset to state of remote repository")
 
-    def run(self, mirror: str, hashtable: str, prompt_user: bool = True, reset_to_remote: bool = False):
+    def run(self, mirror: str, hashtable: str, prompt_user: bool = True, reset_to_remote: bool = False, downloader_type: str = "requests"):
         def download_all():
             """Download all missing files"""
 
@@ -271,7 +281,14 @@ class Updater():
             #     download_file(mirror, item, self.path,
             #                   compared[item]["hash"])  # type: ignore
 
-            downloader = RequestsDownloader()
+            match downloader_type:
+                case "requests":
+                    downloader = RequestsDownloader()
+                case "urllib":
+                    downloader = UrllibDownloader()
+                case _:
+                    raise ValueError("No downloader selected")
+
             downloader.download(compared, mirror, self.path)
 
         compared, size = self.compare(

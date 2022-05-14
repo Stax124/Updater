@@ -32,6 +32,8 @@ parser.add_argument("-v", "--verbose", action="store_true",
                     help="Verbose output", default=False)
 parser.add_argument("-r", "--reset", action="store_true", default=False,
                     help="Overwrite any changes made to the files, reset everything to the remote state")
+parser.add_argument("--downloader", type=str,
+                    default="requests", choices=["requests", "urllib"], help="Specific downloader that will be used")
 parser.add_argument("hashtable", type=str, help="URL or path to hashtable")
 args = parser.parse_args()
 
@@ -89,4 +91,4 @@ else:
             args.mirror += "/"
 
     console.debug("Downloading hashtable...")
-    main_updater.run(args.mirror, args.hashtable, args.yes, args.reset)
+    main_updater.run(args.mirror, args.hashtable, args.yes, args.reset, args.downloader)
