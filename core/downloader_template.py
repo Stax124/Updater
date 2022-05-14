@@ -1,5 +1,4 @@
 import abc
-from typing import Iterable
 
 
 class DownloaderBase(metaclass=abc.ABCMeta):

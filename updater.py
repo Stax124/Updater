@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Union
 
 import requests
-from tqdm import tqdm
+from rich.progress import Progress
 
 from core.requests_downloader import RequestsDownloader
 
@@ -47,17 +47,19 @@ class Updater():
         sha = hashlib.sha256()
 
         try:
-            with open(filename, 'rb') as f:
-                with tqdm(total=os.stat(filename).st_size, unit='B', leave=False,
-                          unit_scale=True, unit_divisor=1024,
-                          desc="Hashing "+filename.__str__() if len(filename.__str__()) < 20 else filename.__str__()[:20] + "...", ascii=False, colour="green") as progressbar:
+            with Progress(expand=True) as progress:
+                task = progress.add_task("Hashing "+filename.__str__() if len(filename.__str__(
+                )) < 20 else filename.__str__()[:20], total=os.stat(filename).st_size)
+
+                with open(filename, 'rb') as f:
                     while True:
                         # 1MB so that memory is not exhausted
                         chunk = f.read(1000 * 1000)
                         if not chunk:
                             break
                         sha.update(chunk)
-                        progressbar.update(1000*1000)
+                        progress.update(task, advance=1000*1000)
+
         except FileNotFoundError:
             console.error(f"File not found: {filename}")
 
@@ -127,7 +129,7 @@ class Updater():
 
         return os.path.abspath(hashtable)
 
-    def generate_hashtable(self, exclude: list) -> dict:
+    def generate_hashtable(self, exclude: list) -> dict:  # ! DEBUG THIS
         """Generate hashtable of directory parsed to main class
 
         Args:
@@ -152,11 +154,17 @@ class Updater():
 
             if files != []:
 
+                relative_dirpath = os.path.relpath(dirpath, self.path)
+
                 for file in files:
+                    relative_path = Path(os.path.normpath(
+                        os.path.join(relative_dirpath, file))).as_posix()
                     path = Path(os.path.normpath(
                         os.path.join(dirpath, file))).as_posix()
+                    console.debug(
+                        f"Path: {path}, Relative path: {relative_dirpath}, Dirpath: {relative_dirpath}, File: {file}")
                     if not path in excluded_files:
-                        generated[path] = {
+                        generated[relative_path] = {
                             "hash": self.create_hash(path),
                             "size": os.path.getsize(path)
                         }
@@ -191,7 +199,15 @@ class Updater():
 
         return dict(generated)
 
-    def compare(self, url: str, hash_all: bool = False) -> tuple[dict[str, dict[str, int]], int]:
+    def generate_extended_hashtable(self) -> dict[str, dict[str, int]]:
+        extended_hashtable = {}
+        for i in self.loaded_hashtable:
+            extended_hashtable[Path(os.path.join(
+                self.path, i)).as_posix()] = self.loaded_hashtable[i]
+
+        return extended_hashtable
+
+    def compare(self, url: str, reset_to_remote: bool = False) -> tuple[dict[str, dict[str, int]], int]:
         """Generate hashtable and compare it to local file or mirror\n
 
         Args:
@@ -204,8 +220,13 @@ class Updater():
         """
 
         self.loaded_hashtable = self.load_hashtable(url)
+        self.extended_hashtable = self.generate_extended_hashtable()
         self.generated_hashtable = self.generate_hashtable(
-            exclude=list()) if hash_all else self.generate_hashtable_from_remote(self.loaded_hashtable)
+            exclude=list()) if reset_to_remote else self.generate_hashtable_from_remote(self.loaded_hashtable)
+
+        console.debug(f"Generated hashtable: {self.generated_hashtable}")
+        console.debug(f"Loaded hashtable: {self.loaded_hashtable}")
+        console.debug(f"Extended hashtable: {self.extended_hashtable}")
 
         diff: dict[str, dict[str, int]] = {}
         size = 0
@@ -217,14 +238,22 @@ class Updater():
                 diff[pathlib.Path(k).as_posix()] = self.loaded_hashtable[k]
                 size += self.loaded_hashtable[k]["size"]
 
+        console.debug(f"Compared: {(diff, size)}")
+
         return (diff, size)
 
     def reset_head(self) -> None:
         "Removes all files that are not present in the remote hashtable"
 
+        # extend loaded_hashtable with selected path
+        extended_hashtable = {}
+        for i in self.loaded_hashtable:
+            extended_hashtable[Path(os.path.join(
+                self.path, i)).as_posix()] = self.loaded_hashtable[i]
+
         # get list of all files that are in generated_hashtable but not in loaded_hashtable
         filtered_list = [
-            i for i in self.generated_hashtable if i not in self.loaded_hashtable]
+            i for i in self.extended_hashtable if i not in extended_hashtable]
 
         console.debug(f"Removing {filtered_list} files")
 
@@ -246,7 +275,8 @@ class Updater():
             downloader = RequestsDownloader()
             downloader.download(compared, mirror, self.path)
 
-        compared, size = self.compare(hashtable, hash_all=reset_to_remote)
+        compared, size = self.compare(
+            hashtable, reset_to_remote=reset_to_remote)
 
         if reset_to_remote:
             self.reset_head()

@@ -3,10 +3,9 @@ import logging as console
 import os
 from os import PathLike
 from pathlib import Path
-from typing import Iterable
 
 import requests
-from tqdm import tqdm
+from rich.progress import Progress
 
 from core.downloader_template import DownloaderBase
 
@@ -32,17 +31,21 @@ class RequestsDownloader(DownloaderBase):
 
         sha = hashlib.sha256()
 
-        with open(file, 'rb') as f:
-            with tqdm(total=file.stat().st_size, unit='B',
-                      unit_scale=True, unit_divisor=1024,
-                      desc=file.name, ascii=False, leave=False) as progressbar:
+        with Progress(expand=True) as progress:
+            task = progress.add_task(
+                f"Validating {file.name}", total=file.stat().st_size)
+
+            with open(file, 'rb') as f:
+                # with tqdm(total=file.stat().st_size, unit='B',
+                #         unit_scale=True, unit_divisor=1024,
+                #         desc=file.name, ascii=False, leave=False) as progressbar:
                 while True:
                     # 1MB so that memory is not exhausted
                     chunk = f.read(1000 * 1000)
                     if not chunk:
                         break
                     sha.update(chunk)
-                    progressbar.update(1000)
+                    progress.update(task, advance=1000)
 
         if not sha.hexdigest() == hash:
             return False
@@ -83,13 +86,15 @@ class RequestsDownloader(DownloaderBase):
         initial_pos = resume_byte_position if resume_byte_position else 0
         mode = 'ab' if resume_byte_position else 'wb'
 
-        print(file)
+        with Progress(expand=True) as progress:
+            task = progress.add_task(
+                f"Downloading {file}", total=file_size, completed=initial_pos)
 
-        with open(file, mode) as f:
-            with tqdm(total=file_size, unit='B',
-                      unit_scale=True, unit_divisor=1024,
-                      desc=file.name, initial=initial_pos,
-                      ascii=False, leave=False) as progressbar:
+            with open(file, mode) as f:
+                # with tqdm(total=file_size, unit='B',
+                #           unit_scale=True, unit_divisor=1024,
+                #           desc=file.name, initial=initial_pos,
+                #           ascii=False, leave=False) as progressbar:
                 for chunk in r.iter_content(32 * block_size):
                     f.write(chunk)
-                    progressbar.update(len(chunk))
+                    progress.update(task, advance=len(chunk))

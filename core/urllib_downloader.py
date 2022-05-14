@@ -3,7 +3,6 @@ import signal
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from threading import Event
-from typing import Iterable
 from urllib.request import urlopen
 
 from rich.progress import (BarColumn, DownloadColumn, Progress, TaskID,
