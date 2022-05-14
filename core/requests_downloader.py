@@ -115,3 +115,8 @@ class RequestsDownloader(DownloaderBase):
                 for chunk in r.iter_content(32 * block_size):
                     f.write(chunk)
                     progress.update(task, advance=len(chunk))
+
+        if not self.validate_file(file, verification_hash):
+            console.error(f'{file} failed verification. Deleting.')
+            file.unlink()
+            raise Exception('File failed verification.')
