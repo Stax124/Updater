@@ -9,3 +9,5 @@
 /test
 /test
 /tests
+poetry.lock
+updater.spec
